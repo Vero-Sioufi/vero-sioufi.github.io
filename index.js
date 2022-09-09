@@ -1,5 +1,5 @@
 // Define global variables to appease standardjs.com linter
-/* global tableau, $, fetch, Option */
+/* global tableau, $, Option */
 
 (function () {
   // Initialize dependencies
@@ -7,7 +7,6 @@
   const tableauConnector = tableau.makeConnector()
 
   // Define variables
-  const airtableMetadataApiBaseUrl = 'https://api.airtable.com/v0/meta'
   const airtableFieldTypesToExclude = ['button', 'multipleAttachments']
   const dataTypesToConsiderMetric = [tableau.dataTypeEnum.int, tableau.dataTypeEnum.float]
 
@@ -78,30 +77,6 @@
     }
   }
 
-  // Helper function to generate fetch request options for an Airtable Metadata API call
-  function airtableMetadataApiRequestOptions (airtableApiToken) {
-    return {
-      method: 'GET',
-      headers: { Authorization: `Bearer ${airtableApiToken}` }
-    }
-  }
-
-  // Helper function to get a list of avaiable bases from the Airtable Metadata API
-  //   KNOWN LIMITATION: Only the first 1,000 bases are returned; UI allows user to enter a base ID as a fallback
-  async function airtableGetListOfBases (airtableApiToken) {
-    const baseListRequest = await fetch(`${airtableMetadataApiBaseUrl}/bases`, airtableMetadataApiRequestOptions(airtableApiToken))
-    const baseList = await baseListRequest.json()
-    return baseList
-  }
-
-  // Helper function to get a base's metadata from the Airtable Metadata API
-  async function airtableGetBaseMetadata (airtableApiToken, airtableBaseId) {
-    const baseMetadataRequest = await fetch(`${airtableMetadataApiBaseUrl}/bases/${airtableBaseId}/tables`, airtableMetadataApiRequestOptions(tableau.password))
-    const baseMetadata = await baseMetadataRequest.json()
-    if (baseMetadata.error) throw new Error(`Status code ${baseMetadataRequest.status} received while calling Metadata API. Does your account have access to this base?\n\n${JSON.stringify(baseMetadata)}`)
-    return baseMetadata
-  }
-
   // Function called when Tableau is ready to pull the schema
   tableauConnector.getSchema = async function (schemaCallback) {
     try {
@@ -113,7 +88,62 @@
       const TABLE_FIELD_METADATA = {} // this will be saved back to connectionData at the end of getSchema and used by getData
 
       // Call Airtable Metadata API
-      const baseMetadata = await airtableGetBaseMetadata(tableau.password, BASE_ID)
+      const baseMetadata = {
+        tables: [
+          {
+            name: 'Vendor Survey',
+            fields: [
+              { name: 'LDAP', type: 'Text' },
+              { name: 'manager', type: 'Lookup' }
+            ]
+          },
+          {
+            name: 'Buildings',
+            fields: [
+              { name: 'Location', type: 'Text' },
+              { name: 'Vendors', type: 'Number' },
+              { name: 'Employees', type: 'Number' },
+              { name: 'Total Workfoce', type: 'Number' },
+              { name: 'Chapter From LOC Simple', type: 'Formula' },
+              { name: 'Vendor Survey', type: 'Link to another record' },
+              { name: 'Building', type: 'Text' },
+              { name: 'City', type: 'Single select' }
+            ]
+          },
+          {
+            name: 'All Vendors (3/2022)',
+            fields: [
+              { name: 'ID', type: 'Formula' },
+              { name: 'Employer', type: 'Single select' }
+            ]
+          },
+          {
+            name: 'Managers',
+            fields: [
+              { name: 'Login', type: 'Long text' },
+              { name: 'Name', type: 'Long text' },
+              { name: 'Work Title', type: 'Long text' },
+              { name: 'Location', type: 'Single select' }
+            ]
+          },
+          {
+            name: 'Employers',
+            fields: [
+              { name: 'Employer', type: 'Text' },
+              { name: 'Website', type: 'URL' },
+              { name: 'Count of Known Vendors', type: 'Count' },
+              { name: 'Survey Completed', type: 'Count' },
+              { name: 'Interest In Joining AWU', type: 'Count' },
+              { name: 'Count of Existing Members', type: 'Count' },
+              { name: 'Unions With Some Relationship', type: 'Single select' },
+              { name: 'Vendors', type: 'Link to another record' },
+              { name: 'Managers', type: 'Link to another record' },
+              { name: 'Count of Managers', type: 'Count' },
+              { name: 'ID (from Vendors)', type: 'Lookup' }
+            ]
+          }
+        ]
+      }
 
       // For each table, create a schema object
       const tableSchemas = baseMetadata.tables.map((tableMeta) => {
@@ -255,17 +285,10 @@
 
     // On API token validation...
     airtableApiTokenField.parsley().on('field:success', async function (e) {
-      // Get a list of bases
-      const airtableApiToken = e.value
-      const baseList = await airtableGetListOfBases(airtableApiToken)
-      const sortedBaseList = baseList.bases.sort((a, b) => (a.name > b.name) ? 1 : -1)
-
-      // Add them to the existing <select> drop down
-      for (const base of sortedBaseList) {
-        const o = new Option(base.name, base.id)
-        $(o).html(base.name)
-        $(airtableBaseIdFieldId).append(o)
-      }
+      // Add the  one base to the existing <select> drop down
+      const o = new Option('Survey Results for Report - Véro', 'apptQuOD7EJrQVvfm')
+      $(o).html('Survey Results for Report - Véro')
+      $(airtableBaseIdFieldId).append(o)
     })
 
     // Form validation powered by parsleyjs.org
